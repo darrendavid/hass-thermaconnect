@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ThermoWorks ThermaConnect",
+        "description": "Point your ThermoWorks NODE/Signals/RFX devices at this MQTT broker (via BLE provisioning), then list their serials. Leave the serial list empty to auto-discover any device that publishes on /devices/+.",
+        "data": {
+          "device_ids": "Device serials (comma-separated, e.g. T10061CE92E24)",
+          "auto_discover": "Auto-discover devices seen on the broker",
+          "topic_prefix": "Topic prefix (default /devices)",
+          "name_prefix": "Name prefix (optional)"
+        },
+        "data_description": {
+          "device_ids": "Bootstrap serials so entities exist before the first message. Auto-discovery covers the rest.",
+          "auto_discover": "Create a device automatically whenever a new /devices/<id>/... topic appears.",
+          "topic_prefix": "Must match the prefix your devices publish to (firmware default: /devices)."
+        }
+      }
+    },
+    "abort": {
+      "mqtt_required": "Set up the MQTT integration first — ThermaConnect receives data through it.",
+      "already_configured": "ThermaConnect is already configured. Use Options to edit devices."
+    },
+    "error": {
+      "invalid_serial": "One or more serials are invalid. Expected format: T followed by 12 hex characters (e.g. T10061CE92E24)."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ThermaConnect options",
+        "data": {
+          "device_ids": "Device serials (comma-separated)",
+          "auto_discover": "Auto-discover devices seen on the broker",
+          "topic_prefix": "Topic prefix",
+          "name_prefix": "Name prefix"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "wifi_strength": { "name": "Wi-Fi signal" },
+      "battery_status": { "name": "Battery" },
+      "firmware": { "name": "Firmware" }
+    },
+    "binary_sensor": {
+      "connectivity": { "name": "Connected" }
+    },
+    "select": {
+      "display_units": { "name": "Display units" }
+    }
+  }
+}

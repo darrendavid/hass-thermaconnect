@@ -1,0 +1,13 @@
+{
+  "domain": "thermaconnect",
+  "name": "ThermoWorks ThermaConnect",
+  "codeowners": ["@darrendavid"],
+  "config_flow": true,
+  "dependencies": ["mqtt"],
+  "documentation": "https://github.com/darrendavid/hass-thermaconnect",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/darrendavid/hass-thermaconnect/issues",
+  "requirements": ["voluptuous"],
+  "version": "0.1.0"
+}

@@ -1,0 +1,12 @@
+publish_config:
+  name: Publish device configuration
+  description: >-
+    Re-publishes the retained config for a ThermaConnect device so it is
+    applied on the device's next wake (immediately for RFX gateways). Use this
+    after editing alarm settings outside the entity controls.
+  fields:
+    device_id:
+      required: true
+      example: "T10061CE92E24"
+      selector:
+        text:
