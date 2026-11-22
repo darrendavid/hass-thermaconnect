@@ -42,6 +42,7 @@
     "sensor": {
       "wifi_strength": { "name": "Wi-Fi signal" },
       "battery_status": { "name": "Battery" },
+      "battery_percent": { "name": "Battery level" },
       "firmware": { "name": "Firmware" }
     },
     "binary_sensor": {

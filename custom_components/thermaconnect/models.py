@@ -36,7 +36,9 @@ class ChannelSnapshot:
     enabled: bool = True
     unit: str | None = None          # "F" | "C" | "RH" from state/config
     sensor_type: int | None = None   # channel type code (config/BLE)
+    sensor_type_name: str | None = None  # NODE sends e.g. "Pro-Series Limited"
     status: int | None = None        # 0..4 see CHANNEL_STATUS
+    status_name: str | None = None   # NODE sends e.g. "NORMAL", "LOW"
 
     value: float | None = None       # latest temperature reading
     humidity: float | None = None    # latest humidity reading
@@ -82,6 +84,18 @@ class ChannelSnapshot:
             self.trim_unit = trim.get("units", self.trim_unit)
 
     def update_from_state(self, ch: dict[str, Any]) -> None:
+        # channel type / status (NODE sends strings; Signals may omit these)
+        stype = ch.get("type")
+        if isinstance(stype, str):
+            self.sensor_type_name = stype
+        elif stype is not None:
+            self.sensor_type = _as_int(stype, self.sensor_type)
+        status = ch.get("status")
+        if isinstance(status, str):
+            self.status_name = status.upper()
+        elif status is not None:
+            self.status = _as_int(status, self.status)
+
         reading = ch.get("reading") or {}
         value = _to_float(reading.get("value"))
         if value is not None:
@@ -93,8 +107,9 @@ class ChannelSnapshot:
             ts = _to_float(reading.get("ts"))
             if ts is not None:
                 self.reading_ts = ts / 1000.0 if ts > 1e11 else ts
-        high = ch.get("highAlarm") or {}
-        low = ch.get("lowAlarm") or {}
+        # Signals uses highAlarm/lowAlarm; NODE uses alarmHigh/alarmLow.
+        high = ch.get("highAlarm") or ch.get("alarmHigh") or {}
+        low = ch.get("lowAlarm") or ch.get("alarmLow") or {}
         if "alarming" in high:
             self.high_alarming = bool(high["alarming"])
         if "alarming" in low:
@@ -108,11 +123,20 @@ class ChannelSnapshot:
             value = _to_float(reading.get("value"))
             if value is None:
                 continue
-            rtype = (reading.get("type") or "T").upper()
-            if rtype == READING_HUMIDITY_KEY:
+            # NODE readings carry units ("F"/"C"/"RH"); Signals carry type ("T"/"H").
+            runits = (reading.get("units") or "").upper()
+            rtype = (reading.get("type") or "").upper()
+            if runits == "RH" or rtype == READING_HUMIDITY_KEY:
                 self.humidity = value
+                if runits:
+                    self.unit = runits
             else:
                 self.value = value
+                if runits in ("F", "C"):
+                    self.unit = runits
+            rts = _to_float(reading.get("ts"))
+            if rts is not None:
+                self.reading_ts = rts / 1000.0 if rts > 1e11 else rts
 
 
 READING_HUMIDITY_KEY = "H"
@@ -137,8 +161,10 @@ class ThermaConnectDevice:
     model: str | None = None       # "device" field e.g. "signals"
     kind: str | None = None        # "type" field e.g. "bbq"
     firmware: str | None = None
-    wifi_strength: int | None = None
-    battery: str | None = None     # letter code, e.g. "C"
+    wifi_strength: int | None = None  # raw RSSI dBm on NODE; % on Signals
+    battery: str | None = None     # letter code (Signals), e.g. "C"
+    battery_pct: int | None = None  # NODE sends integer percentage
+    battery_charging: bool | None = None
     connected_ssid: str | None = None
     display_units: str | None = None
     transmit_interval: int | None = None
@@ -185,7 +211,17 @@ class ThermaConnectDevice:
         self.kind = payload.get("type", self.kind)
         self.firmware = payload.get("firmware", self.firmware)
         self.wifi_strength = _as_int(payload.get("wifi_strength"), self.wifi_strength)
-        self.battery = payload.get("battery", self.battery)
+        batt = payload.get("battery")
+        if isinstance(batt, bool):
+            batt = None
+        elif isinstance(batt, (int, float)):
+            self.battery_pct = int(batt)
+        elif isinstance(batt, str) and batt.strip().isdigit():
+            self.battery_pct = int(batt.strip())
+        elif isinstance(batt, str) and batt:
+            self.battery = batt
+        if "batteryIsCharging" in payload:
+            self.battery_charging = bool(_as_int(payload.get("batteryIsCharging"), 0))
         self.connected_ssid = payload.get("connectedSSID", self.connected_ssid)
         self.display_units = payload.get("displayUnits", self.display_units)
         self.transmit_interval = _as_int(
@@ -205,6 +241,15 @@ class ThermaConnectDevice:
         self.state_received = True
 
     def apply_telemetry(self, payload: dict[str, Any]) -> None:
+        batt = payload.get("battery")
+        if isinstance(batt, bool):
+            pass
+        elif isinstance(batt, (int, float)):
+            self.battery_pct = int(batt)
+        elif isinstance(batt, str) and batt.strip().isdigit():
+            self.battery_pct = int(batt.strip())
+        elif isinstance(batt, str) and batt:
+            self.battery = batt
         for ch in payload.get("channels") or []:
             number = _as_int(ch.get("number"))
             if number is None:

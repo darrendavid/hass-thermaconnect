@@ -10,6 +10,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfTemperature,
     EntityCategory,
 )
@@ -37,6 +38,7 @@ async def async_setup_entry(
         out: list[SensorEntity] = [
             DeviceSignalSensor(bridge, device),
             DeviceBatterySensor(bridge, device),
+            DeviceBatteryPercentSensor(bridge, device),
             DeviceFirmwareSensor(bridge, device),
         ]
         for number in device.channels:
@@ -96,8 +98,8 @@ class ChannelTemperatureSensor(ThermaConnectChannelEntity, SensorEntity):
         ch = self.channel
         return {
             "reading_ts": ch.reading_ts,
-            "sensor_type": ch.sensor_type,
-            "status": ch.status,
+            "sensor_type": ch.sensor_type_name or ch.sensor_type,
+            "status": ch.status_name or ch.status,
         }
 
 
@@ -174,7 +176,6 @@ class _DeviceLevelSensor(SensorEntity):
 
 class DeviceSignalSensor(_DeviceLevelSensor):
     _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
-    _attr_native_unit_of_measurement = PERCENTAGE
     _attr_translation_key = "wifi_strength"
 
     @property
@@ -185,6 +186,14 @@ class DeviceSignalSensor(_DeviceLevelSensor):
     def native_value(self) -> int | None:
         return self._device.wifi_strength
 
+    @property
+    def native_unit_of_measurement(self) -> str:
+        # NODE reports raw RSSI (negative dBm); Signals reports a 0-100 % figure.
+        val = self._device.wifi_strength
+        if val is not None and val < 0:
+            return SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+        return PERCENTAGE
+
 
 class DeviceBatterySensor(_DeviceLevelSensor):
     _attr_translation_key = "battery_status"
@@ -194,8 +203,37 @@ class DeviceBatterySensor(_DeviceLevelSensor):
         return "battery"
 
     @property
+    def available(self) -> bool:
+        return super().available and self._device.battery is not None
+
+    @property
     def native_value(self) -> str | None:
         return self._device.battery
+
+
+class DeviceBatteryPercentSensor(_DeviceLevelSensor):
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_translation_key = "battery_percent"
+
+    @property
+    def uid_suffix(self) -> str:
+        return "battery-percent"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._device.battery_pct is not None
+
+    @property
+    def native_value(self) -> int | None:
+        return self._device.battery_pct
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self._device.battery_charging is not None:
+            return {"charging": self._device.battery_charging}
+        return {}
 
 
 class DeviceFirmwareSensor(_DeviceLevelSensor):
